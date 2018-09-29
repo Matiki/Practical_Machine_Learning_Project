@@ -20,7 +20,7 @@ if(!file.exists("pml-testing.csv")){
 
 # Read the data into R
 training <- read.csv("pml-training.csv", na.strings = c("NA","#DIV/0!",""))
-testing <- read.csv("pml-testing.csv", na.strings = c("NA","#DIV/0!",""))
+validation <- read.csv("pml-testing.csv", na.strings = c("NA","#DIV/0!",""))
 
 # look at data
 head(training); str(training); summary(training)
@@ -31,6 +31,7 @@ inTrain <- createDataPartition(y = training$classe, p = .75, list = FALSE)
 trainset <- training[inTrain, ]
 testset <- training[-inTrain, ]
 rm(inTrain)
+rm(training)
 
 # coerce 'classe' variable into factor variable
 trainset$classe <- as.factor(trainset$classe)
@@ -64,7 +65,7 @@ diag(m) <- 0
 which(m > 0.8, arr.ind = TRUE)
 rm(m)
 
-# do PCA and knn imputation to remove remaining NAs and 5-fold cross validation
+# do PCA and 5-fold cross validation
 tc <- trainControl(method = "cv",
                    number = 5,
                    verboseIter = FALSE , 
@@ -95,3 +96,20 @@ model_lda <- train(classe ~.,
                    data = trainset,
                    method = "lda",
                    trControl = tc)
+
+# take a look at accuracy of each model
+accuracy <- cbind("Decision Tree" = mean(model_tree$results$Accuracy),
+                  "Random Forest" = mean(model_rf$results$Accuracy),
+                  "GBM Boost" = mean(model_boost$results$Accuracy),
+                  "LDA" = mean(model_lda$results$Accuracy))
+print(accuracy)
+rm(accuracy)
+
+# since the random forest model had the best mean performance, we'll use it to 
+# make a prediction with our test set.
+prediction_rf <- predict(model_rf, newdata = testset)
+confusionMatrix(prediction_rf, testset$classe)
+
+# attempt to accurately predict on the validation set
+validate_rf <- predict(model_rf, validation)
+validate_rf
