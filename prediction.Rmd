@@ -2,7 +2,9 @@
 title: "Practical Machine Learning Prediction Assignment"
 author: "Matiki"
 date: "October 2, 2018"
-output: html_document
+output: 
+  html_document: 
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -22,8 +24,8 @@ We will be building machine learning algorithms to make predictions on the manne
 in which the exercises were performed. We will divide the data into training and
 test sets, build 4 types of machine learning models on the training data: 
 decision tree, random forest, boosting, and linear discirminant analysis. We will
-use cross validation to select the best performing model, and estimate the 
-out-of-sample error rate using the test set. Finally we will apply our best 
+use cross validation to help us select the best performing model, and estimate 
+the out-of-sample error rate using the test set. Finally we will apply our best 
 performing model to a set of 20 test cases for a final assessment. 
 
 ## Getting Data
@@ -56,8 +58,11 @@ validation <- read.csv("pml-testing.csv", na.strings = c("NA","#DIV/0!",""))
 # head(training); str(training); summary(training)
 ```
 
-## Cleaning the Data & Preprocessing 
-Next we need to split the data into training and test sets.
+## Cleaning Data & Preprocessing 
+Next we need to split the data into training and test sets. For reproducibility,
+we will set the seed, and then split 75% of the data into the training set, the 
+rest will become the test set.
+
 ```{r}
 # split data into train/test sets
 set.seed(54321)
@@ -66,18 +71,34 @@ trainset <- training[inTrain, ]
 testset <- training[-inTrain, ]
 rm(inTrain)
 rm(training)
+```
 
+Next we'll turn the 'classe' variable, which we want to predict, into a factor 
+variable, and get rid of the first several columns which are just for 
+identification purposes, and won't be needed for our prediction.
+
+```{r}
 # coerce 'classe' variable into factor variable
 trainset$classe <- as.factor(trainset$classe)
 testset$classe <- as.factor(testset$classe)
 
-# pre processing:
 # remove unnecessary variables related to ID
 trainset <- trainset[, -c(1:7)]
+```
 
+We won't be able to use our machine learning algorithms if there are NA values,
+so we'll need to handle them. We start by checking to see how many NAs we have.
+
+```{r}
 # check for NAs
 sum(is.na(trainset))
+```
 
+Since we have so many NAs, imputation may not be a very effective way of handling 
+all the missing values. We'll just remove the variables that have mostly NAs, and 
+then check how many NA values are left.
+
+```{r}
 # remove rows with greater than 50% NA's
 mostlyNA <- sapply(trainset, is.na) %>%
         colMeans() > 0.5
@@ -86,19 +107,37 @@ rm(mostlyNA)
 
 # check for NAs again
 sum(is.na(trainset))
+```
 
+It seems we got rid of all the NA values in our data set. Next we'll check to see
+if any variables have close to zero variability. If they do, we might want to 
+remove them from our data set before building our models.
+
+```{r}
 # check for any variables with nearly zero variance
 nzv <- nearZeroVar(trainset, saveMetrics = TRUE)
 head(nzv)
 sum(nzv$nzv)
 rm(nzv)
+```
 
+It seems we don't have any variables with near zero variance, so next we'll 
+check to see if any of the variables are highly correlated.
+
+```{r}
 # check if remaining variables are highly correlated
 m <- cor(trainset[,-length(trainset)])
 diag(m) <- 0
 which(m > 0.8, arr.ind = TRUE)
 rm(m)
+```
 
+It seems there are several variables with high correlation, so we will account 
+for this by adding some principal components analysis to our pre processing step.
+We will also do a 5-fold cross validation. Both of these methods are done through
+the function call to trainControl() which will be used when we build our models.
+
+```{r}
 # do PCA and 5-fold cross validation
 tc <- trainControl(method = "cv",
                    number = 5,
@@ -108,8 +147,11 @@ tc <- trainControl(method = "cv",
 ```
 
 ## Build the Models
+Finally we are ready to build our models. We will use the train() function from
+the caret package to build a decision tree, a random forest model, a boosting 
+model, and a linear discriminant analysis model.
 
-```{r}
+```{r, cache=TRUE}
 # fit a decision tree model
 model_tree <- train(classe ~., 
                     data = trainset, 
@@ -137,6 +179,8 @@ model_lda <- train(classe ~.,
 ```
 
 ## Evaluate & Compare Model Performance
+Now that the models are built, it's time to take a look at how they compare in 
+terms of accuracy.
 
 ```{r}
 # take a look at accuracy of each model
@@ -148,6 +192,9 @@ print(accuracy)
 rm(accuracy)
 ```
 
+It looks like the random forest model produced the greatest accuracy. We will 
+use this model on our test set to estimate the out of sample error for our model.
+
 ## Evaluate Out-Of-Sample Error
 
 ```{r}
@@ -157,7 +204,11 @@ prediction_rf <- predict(model_rf, newdata = testset)
 confusionMatrix(prediction_rf, testset$classe)
 ```
 
+So it seems our out-of-sample error rate is about 0.63% in our random forest model.
+
 ## Predict on Validation Set
+Our final step is to use our model to make a prediction on a new set of 20 cases.
+This is what will be used for the final assessment of our model and this assignment.
 
 ```{r}
 # attempt to accurately predict on the validation set
